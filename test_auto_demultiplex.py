@@ -462,6 +462,60 @@ def test_default_mismatch_is_2():
     print('PASSED')
     return True
 
+def test_barcode_stat_canonical_headers():
+    """BarcodeStat.txt must use canonical splitBarcode column headers."""
+    print('\n=== Test BarcodeStat canonical headers ===')
+    output_dir = '/tmp/test_bcstat_headers'
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+
+    cmd = ['python3', 'auto_demultiplex.py',
+           '-1', 'examples/Cases/case1_10r_1.fq.gz',
+           '-2', 'examples/Cases/case1_10r_2.fq.gz',
+           '-B', 'examples/Cases/case1.barcode',
+           '-r', '-o', output_dir]
+
+    if not run_cmd(cmd):
+        return False
+
+    with open(os.path.join(output_dir, 'BarcodeStat.txt')) as f:
+        header = f.readline().rstrip('\n')
+
+    expected = '#Barcode\tCorrect\tCorrected\tTotal\tPercentage(%)'
+    if header != expected:
+        print(f'ERROR: Expected header:\n  {expected!r}\nGot:\n  {header!r}')
+        return False
+
+    print('PASSED')
+    return True
+
+def test_barcode_mixed_length_warns():
+    """Loading a barcode file with mixed sequence lengths should print a warning."""
+    print('\n=== Test mixed-length barcode file warning ===')
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.barcode', delete=False) as f:
+        f.write('bc1\tAGCGTTCCCA\n')   # 10bp
+        f.write('bc2\tTAATCCTTATCATTCCTATT\n')  # 20bp
+        mixed_path = f.name
+
+    cmd = ['python3', 'auto_demultiplex.py',
+           '-1', 'examples/Cases/case1_10r_1.fq.gz',
+           '-2', 'examples/Cases/case1_10r_2.fq.gz',
+           '-B', mixed_path,
+           '-r', '-o', '/tmp/test_mixed_warn']
+
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=SCRIPT_DIR)
+    os.unlink(mixed_path)
+
+    if 'WARNING' not in result.stderr:
+        print(f'ERROR: Expected a WARNING: message in stderr about mixed barcode lengths')
+        print(f'stderr: {result.stderr[:400]}')
+        return False
+
+    print('PASSED')
+    return True
+
 def test_error_handling():
     print('\n=== Test Error Handling ===')
 
@@ -510,6 +564,8 @@ def main():
         ('Case 8 Single 6bp', test_case8_single),
         ('SequenceStat non-zero', test_sequence_stat_nonzero),
         ('Default mismatch=2', test_default_mismatch_is_2),
+        ('BarcodeStat canonical headers', test_barcode_stat_canonical_headers),
+        ('Mixed-length barcode warning', test_barcode_mixed_length_warns),
         ('Error Handling', test_error_handling),
     ]
 

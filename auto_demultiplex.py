@@ -139,7 +139,7 @@ def detect_barcode_config(r1_path, r2_path=None, sample_size=50000):
         return detect_se_config(r1_path, known_barcodes, sample_size)
 
 def find_matching_barcode(seq, known_barcodes, max_mismatch=1):
-    for bc, count in Counter([seq, rev_comp(seq)]).items():
+    for bc in set([seq, rev_comp(seq)]):
         for name, known_seq in known_barcodes.items():
             dist = hamming_distance(bc, known_seq)
             if dist <= max_mismatch:
@@ -484,7 +484,7 @@ def write_statistics(barcodes, stats, seq_stats, mismatch_stats, output_dir):
     demux_total = sum(v for k, v in stats.items() if k != 'total' and k != 'ambiguous')
     
     with open(os.path.join(output_dir, 'BarcodeStat.txt'), 'w') as f:
-        f.write('BarcodeID\tPerfectMatch\tMismatchMatch\tTotalReads\tPercent\n')
+        f.write('#Barcode\tCorrect\tCorrected\tTotal\tPercentage(%)\n')
         for name in sorted(barcodes.keys()):
             count = stats.get(name, 0)
             mismatch = mismatch_stats.get(name, 0)
@@ -546,9 +546,12 @@ Usage:
         if not raw_barcodes:
             print(f'ERROR: No barcodes found in {args.barcode}', file=sys.stderr)
             sys.exit(1)
-        barcodes = {name: {'sequence': seq, 'use_rc': args.reverse, 'mismatch': 0, 'count': 0} 
+        barcodes = {name: {'sequence': seq, 'use_rc': args.reverse, 'mismatch': 0, 'count': 0}
                     for name, seq in raw_barcodes.items()}
         print(f'Loaded {len(barcodes)} barcodes from {args.barcode}')
+        seq_lengths = set(len(info['sequence']) for info in barcodes.values())
+        if len(seq_lengths) > 1:
+            print(f'WARNING: Barcode sequences have inconsistent lengths {sorted(seq_lengths)}. Using length of first barcode ({len(next(iter(barcodes.values()))["sequence"])}bp).', file=sys.stderr)
         
         r2_path = args.fastq2 if args.fastq2 else args.fastq1
         sample = read_fastq_records(r2_path, 100)
